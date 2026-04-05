@@ -22,6 +22,13 @@ internal static class Program
 
             var projectRoot = ProjectLocator.ResolveWorkingRoot(opts.ProjectRoot);
             Directory.SetCurrentDirectory(projectRoot);
+
+            if (opts.Init)
+            {
+                ConfigInitializer.Initialize(projectRoot);
+                return 0;
+            }
+
             Console.WriteLine($"Working directory: {projectRoot}");
 
             var apiKey = CredentialStore.ResolveApiKey(projectRoot, exeDir);
@@ -227,14 +234,16 @@ internal static class Program
 
     private static void PrintHelp()
     {
-        Console.WriteLine("""
+            Console.WriteLine("""
             PgyerApkUploader — upload APK to 蒲公英 (Pgyer) API v2.
 
             Usage:
-              PgyerApkUploader [--project PATH] [--flavor NAME] [--build-type Release|Debug]
+              PgyerApkUploader [--project PATH] [--init]
+                               [--flavor NAME] [--build-type Release|Debug]
                                [--build] [--apk PATH] [--update-description TEXT] [--force]
 
             Options:
+              --init                 Create pgyer_config.json and pgyer-api-key.local in the project folder if missing (no upload).
               --project, -p          Folder to scan for APKs and config files. Default: walk up from cwd for gradlew, else cwd.
               --flavor, -f           Gradle flavor for assemble task (default: _365GPSCN).
               --build-type           Release or Debug for assemble task (default: Release).
@@ -264,6 +273,7 @@ internal static class Program
 internal sealed class CliOptions
 {
     public string? ProjectRoot { get; init; }
+    public bool Init { get; init; }
     public string Flavor { get; init; } = DefaultFlavor;
     public string BuildType { get; init; } = "Release";
     public bool Build { get; init; }
@@ -276,6 +286,7 @@ internal sealed class CliOptions
     public static CliOptions Parse(string[] args)
     {
         string? project = null;
+        var init = false;
         var flavor = DefaultFlavor;
         var buildType = "Release";
         var build = false;
@@ -316,6 +327,9 @@ internal sealed class CliOptions
                 case "--force":
                     force = true;
                     break;
+                case "--init":
+                    init = true;
+                    break;
                 default:
                     throw new InvalidOperationException($"Unknown argument: {a}. Use --help.");
             }
@@ -324,6 +338,7 @@ internal sealed class CliOptions
         return new CliOptions
         {
             ProjectRoot = project,
+            Init = init,
             Flavor = flavor,
             BuildType = buildType,
             Build = build,

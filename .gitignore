@@ -29,3 +29,6 @@ Thumbs.db
 
 # Local / session debug logs
 debug-*.log
+
+# Pgyer local credentials (created by --init)
+pgyer-api-key.local
