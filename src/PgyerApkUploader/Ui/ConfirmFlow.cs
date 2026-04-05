@@ -26,89 +26,43 @@ public static class ConfirmFlow
     }
 
     /// <summary>
-    /// Shows full remark text; user must confirm or edit before upload.
+    /// Remark was read from pgyer_config.json (or legacy file). Show it and prompt [Y/n] — no terminal editing.
     /// </summary>
-    public static string ConfirmRemarkBeforeUpload(string initialRemark, string? configSourceLabel)
+    public static void ConfirmLoadedRemarkFromConfigOrCancel(string remark, string? configSourceLabel)
     {
-        while (true)
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("---------- Remark (from config file) ----------");
+        Console.ResetColor();
+        if (!string.IsNullOrEmpty(configSourceLabel))
+            Console.WriteLine($"  Source: {configSourceLabel}");
+        Console.WriteLine(remark);
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("-----------------------------------------------");
+        Console.ResetColor();
+
+        if (!PromptYnFallback("Upload with this remark?"))
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("---------- Remark (Pgyer buildUpdateDescription) ----------");
-            Console.ResetColor();
-            if (!string.IsNullOrEmpty(configSourceLabel))
-                Console.WriteLine($"  Source: {configSourceLabel}");
-            var display = string.IsNullOrEmpty(initialRemark) ? "(empty — no update notes)" : initialRemark;
-            Console.WriteLine(display);
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("------------------------------------------------------------");
-            Console.ResetColor();
-
-            Console.WriteLine("Proceed with this remark?  [Y] Upload  [E] Edit  [N] Cancel");
-            var key = ReadYen();
-            switch (key)
-            {
-                case ConsoleKey.Y:
-                    return initialRemark;
-                case ConsoleKey.E:
-                    initialRemark = PromptMultilineRemark();
-                    continue;
-                case ConsoleKey.N:
-                    Console.WriteLine("Cancelled.");
-                    Environment.Exit(0);
-                    return "";
-                default:
-                    Console.WriteLine("Please press Y, E, or N.");
-                    break;
-            }
+            Console.WriteLine("Cancelled.");
+            Environment.Exit(0);
         }
-    }
-
-    private static string PromptMultilineRemark()
-    {
-        Console.WriteLine("Enter remark (finish with a blank line, or type a single line and press Enter):");
-        var lines = new List<string>();
-        while (true)
-        {
-            var line = Console.ReadLine();
-            if (line is null)
-                break;
-            if (lines.Count == 0 && string.IsNullOrEmpty(line))
-                return "";
-            if (lines.Count > 0 && string.IsNullOrEmpty(line))
-                break;
-            lines.Add(line);
-        }
-
-        return string.Join(Environment.NewLine, lines);
     }
 
     /// <summary>
-    /// Same-console Y/N. We do not use choice.exe: spawning it with a hidden window / redirected
-    /// streams often leaves no visible prompt in the parent console, so it looks "stuck" after the APK box.
+    /// Same-console [Y/n] (Enter = Yes). We do not use choice.exe: hidden subprocess prompts look "stuck".
     /// </summary>
     private static bool ChoiceYesNo() => PromptYnFallback("Upload this APK?");
 
     private static bool PromptYnFallback(string message)
     {
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine($"{message} (Y/N)");
+        Console.WriteLine($"{message} [Y/n]");
         Console.ResetColor();
         while (true)
         {
             var k = Console.ReadKey(true);
-            if (k.Key == ConsoleKey.Y) return true;
+            if (k.Key is ConsoleKey.Y or ConsoleKey.Enter) return true;
             if (k.Key == ConsoleKey.N) return false;
-        }
-    }
-
-    private static ConsoleKey ReadYen()
-    {
-        while (true)
-        {
-            var k = Console.ReadKey(true);
-            if (k.Key is ConsoleKey.Y or ConsoleKey.E or ConsoleKey.N)
-                return k.Key;
         }
     }
 }

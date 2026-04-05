@@ -65,29 +65,22 @@ internal static class Program
             var cfg = PgyerConfigLoader.Load(projectRoot, exeDir);
 
             string remarkToSend;
-            string? remarkSourceLabel;
             if (!string.IsNullOrWhiteSpace(opts.UpdateDescription))
             {
                 remarkToSend = opts.UpdateDescription.Trim();
-                remarkSourceLabel = "command line (--update-description)";
-                WriteColoredLine("Using update description from command line.", ConsoleColor.DarkGray);
+                WriteColoredLine("Using update description from command line (no remark prompt).", ConsoleColor.DarkGray);
             }
             else if (cfg is not null && !string.IsNullOrWhiteSpace(cfg.RemarkText))
             {
                 remarkToSend = cfg.RemarkText;
-                remarkSourceLabel = cfg.SourcePath is not null ? $"config file: {cfg.SourcePath}" : "config file";
-                WriteColoredLine(
-                    "Loaded remark from pgyer_config.json / legacy file — you will preview and confirm before upload.",
-                    ConsoleColor.DarkGray);
+                var label = cfg.SourcePath is not null ? cfg.SourcePath : "config file";
+                if (!opts.Force)
+                    ConfirmFlow.ConfirmLoadedRemarkFromConfigOrCancel(remarkToSend, label);
             }
             else
             {
                 remarkToSend = "";
-                remarkSourceLabel = "(no config text — optional notes)";
             }
-
-            if (!opts.Force)
-                remarkToSend = ConfirmFlow.ConfirmRemarkBeforeUpload(remarkToSend, remarkSourceLabel);
 
             var client = new PgyerApiClient();
             var result = await client.UploadAsync(
@@ -248,7 +241,7 @@ internal static class Program
               --build                Run gradlew assemble, then scan for APKs.
               --apk                  Upload this file; skips scan and --build.
               --update-description   Pgyer buildUpdateDescription (overrides pgyer_config.json).
-              --force                Skip APK/remark prompts; with multiple APKs, uploads newest (for CI).
+              --force                Skip APK and config-remark prompts; with multiple APKs, uploads newest (for CI).
 
             Environment:
               PGYER_API_KEY          API key (recommended).
@@ -261,8 +254,9 @@ internal static class Program
             APK scan: recursive *.apk under project root, sorted by modified time (newest first). If more
             than one exists, you pick the index (unless --force, which takes the newest).
 
-            Remark flow: the full remark is always shown; press Y to upload, E to edit, N to cancel
-            (unless --force). This avoids skipping confirmation when update_description is set in JSON.
+            Remark: if pgyer_config.json (or legacy file) has update_description/note, it is shown once;
+            press Enter or Y to upload, N to cancel. No local remark file → upload with empty description (no remark prompt).
+            --update-description skips the remark prompt. --force skips APK + remark prompts.
             """);
     }
 }
