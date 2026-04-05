@@ -1,0 +1,31 @@
+# Build outputs (.NET SDK)
+**/bin/
+**/obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+
+# dotnet publish output (local)
+publish/
+out/
+
+# Visual Studio / VS Code / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.rsuser
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local / session debug logs
+debug-*.log
