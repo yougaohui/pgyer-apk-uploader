@@ -10,13 +10,15 @@ Standalone Windows-friendly uploader for [蒲公英 Pgyer](https://www.pgyer.com
 
 ## Build
 
+From the repository root:
+
 ```bash
-dotnet build pgyer-apk-uploader/PgyerApkUploader.sln -c Release
+dotnet build PgyerApkUploader.sln -c Release
 ```
 
 ## Run (framework-dependent)
 
-From the solution folder:
+From the repository root:
 
 ```bash
 dotnet run --project src/PgyerApkUploader/PgyerApkUploader.csproj -- --project D:\path\to\android\project
@@ -25,6 +27,8 @@ dotnet run --project src/PgyerApkUploader/PgyerApkUploader.csproj -- --project D
 Arguments: `--help` for full list (`--project`, `--flavor`, `--build-type`, `--build`, `--apk`, `--update-description`, `--force`).
 
 ## Publish: single-file self-contained (no .NET runtime on target PC)
+
+From the repository root:
 
 ```bash
 dotnet publish src/PgyerApkUploader/PgyerApkUploader.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish

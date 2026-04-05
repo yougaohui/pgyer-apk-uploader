@@ -11,7 +11,7 @@ public static class GradleTaskName
         if (string.Equals(flavor, "peerService", StringComparison.Ordinal))
             return $"assemblePeerService{suffix}";
 
-        if (flavor.StartsWith('_', StringComparison.Ordinal))
+        if (flavor.StartsWith("_", StringComparison.Ordinal))
             return $"assemble{flavor}{suffix}";
 
         var cap = flavor.Length > 0
