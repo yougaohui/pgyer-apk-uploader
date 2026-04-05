@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using PgyerApkUploader.Services;
 using PgyerApkUploader.Ui;
 
@@ -105,8 +106,65 @@ internal static class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex.Message);
+            PauseAfterError(ex.Message);
             return 1;
         }
+    }
+
+    private static bool IsCiLikeEnvironment()
+    {
+        if (string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TF_BUILD")))
+            return true;
+        if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Wait for a key when possible; if stdin is redirected, ReadKey fails, or there is no usable console,
+    /// show a Windows message box (skipped in CI-like environments).
+    /// </summary>
+    private static void PauseAfterError(string message)
+    {
+        var readKeyOk = false;
+        try
+        {
+            if (!Console.IsInputRedirected && !Console.IsOutputRedirected)
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Press any key to exit...");
+                Console.ReadKey(intercept: true);
+                readKeyOk = true;
+            }
+        }
+        catch
+        {
+            // No console or ReadKey not available.
+        }
+
+        if (readKeyOk)
+            return;
+
+        if (!OperatingSystem.IsWindows() || IsCiLikeEnvironment())
+            return;
+
+        try
+        {
+            var text = message.Length > 1500 ? message[..1500] + "…" : message;
+            NativeMethods.MessageBoxW(IntPtr.Zero, text, "PgyerApkUploader", 0x00000010); // MB_OK | MB_ICONERROR
+        }
+        catch
+        {
+            // MessageBox unavailable.
+        }
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern int MessageBoxW(IntPtr hWnd, string? text, string? caption, uint type);
     }
 
     private static void WriteColoredLine(string message, ConsoleColor color)
