@@ -1,25 +1,23 @@
 namespace PgyerApkUploader.Services;
 
 /// <summary>
-/// Finds Android Gradle project root (folder containing gradlew.bat or gradlew).
+/// Resolves a working directory for APK scan and config. Prefers an Android Gradle root when found.
 /// </summary>
 public static class ProjectLocator
 {
     /// <summary>
-    /// Resolves project root: explicit path, then APKUPLOAD_PROJECT_ROOT, then walk up from cwd, then exe directory.
+    /// Explicit path or <c>APKUPLOAD_PROJECT_ROOT</c> must exist. Gradle wrapper is not required unless you use <c>--build</c>.
+    /// Otherwise: walk up from <paramref name="cwd"/> / exe dir for <c>gradlew</c>; if none, use current directory.
     /// </summary>
-    public static string ResolveProjectRoot(string? explicitRoot, string? cwd = null)
+    public static string ResolveWorkingRoot(string? explicitRoot, string? cwd = null)
     {
         cwd ??= Directory.GetCurrentDirectory();
 
         if (!string.IsNullOrWhiteSpace(explicitRoot))
         {
             if (!Directory.Exists(explicitRoot))
-                throw new InvalidOperationException($"Project root not found: {explicitRoot}");
-            var r = Path.GetFullPath(explicitRoot);
-            if (!HasGradleWrapper(r))
-                throw new InvalidOperationException($"Project root must contain gradlew.bat: {r}");
-            return r;
+                throw new InvalidOperationException($"Directory not found: {explicitRoot}");
+            return Path.GetFullPath(explicitRoot);
         }
 
         var envRoot = Environment.GetEnvironmentVariable("APKUPLOAD_PROJECT_ROOT");
@@ -27,10 +25,7 @@ public static class ProjectLocator
         {
             if (!Directory.Exists(envRoot))
                 throw new InvalidOperationException($"APKUPLOAD_PROJECT_ROOT is not a valid path: {envRoot}");
-            var r = Path.GetFullPath(envRoot);
-            if (!HasGradleWrapper(r))
-                throw new InvalidOperationException($"APKUPLOAD_PROJECT_ROOT must contain gradlew.bat: {r}");
-            return r;
+            return Path.GetFullPath(envRoot);
         }
 
         var fromCwd = FindGradleRoot(cwd);
@@ -45,11 +40,7 @@ public static class ProjectLocator
                 return fromExe;
         }
 
-        throw new InvalidOperationException(
-            "Could not find Android project root (gradlew.bat).\n" +
-            "  - Open a terminal with current directory inside your project, or\n" +
-            "  - Set user env var APKUPLOAD_PROJECT_ROOT to the project root, or\n" +
-            "  - Pass --project \"D:\\path\\to\\project\"");
+        return Path.GetFullPath(cwd);
     }
 
     public static string? FindGradleRoot(string startPath)
@@ -71,8 +62,6 @@ public static class ProjectLocator
         return null;
     }
 
-    private static bool HasGradleWrapper(string dir)
-    {
-        return File.Exists(Path.Combine(dir, "gradlew.bat")) || File.Exists(Path.Combine(dir, "gradlew"));
-    }
+    public static bool HasGradleWrapper(string dir) =>
+        File.Exists(Path.Combine(dir, "gradlew.bat")) || File.Exists(Path.Combine(dir, "gradlew"));
 }

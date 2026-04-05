@@ -2,48 +2,30 @@ namespace PgyerApkUploader.Services;
 
 public static class ApkResolver
 {
-    public static string GetApkOutputDir(string projectRoot, string flavor, string buildType)
-    {
-        var dirName = string.Equals(buildType, "Release", StringComparison.OrdinalIgnoreCase)
-            ? "release"
-            : "debug";
-        return Path.Combine(projectRoot, "app", "build", "outputs", "apk", flavor, dirName);
-    }
-
     /// <summary>
-    /// Newest .apk under flavor release/debug, or recursively under flavor folder.
+    /// All <c>*.apk</c> under <paramref name="root"/> (recursive), newest first by last write time.
     /// </summary>
-    public static string ResolveNewestApk(string projectRoot, string flavor, string buildType)
+    public static IReadOnlyList<FileInfo> EnumerateApksSortedNewestFirst(string root)
     {
-        var dir = GetApkOutputDir(projectRoot, flavor, buildType);
-        var flavorRoot = Path.Combine(projectRoot, "app", "build", "outputs", "apk", flavor);
+        var rootFull = Path.GetFullPath(root);
+        if (!Directory.Exists(rootFull))
+            throw new InvalidOperationException($"Directory not found: {rootFull}");
 
-        FileInfo? apk = null;
-        if (Directory.Exists(dir))
+        var opts = new EnumerationOptions
         {
-            apk = new DirectoryInfo(dir)
-                .EnumerateFiles("*.apk", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .FirstOrDefault();
-        }
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint
+        };
 
-        if (apk is null && Directory.Exists(flavorRoot))
-        {
-            apk = new DirectoryInfo(flavorRoot)
-                .EnumerateFiles("*.apk", SearchOption.AllDirectories)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .FirstOrDefault();
-        }
+        var list = new List<FileInfo>();
+        foreach (var f in new DirectoryInfo(rootFull).EnumerateFiles("*.apk", opts))
+            list.Add(f);
 
-        if (apk is null)
-        {
-            const string hint = "Build the APK in Android Studio (Build > Build APK) or run with --build";
-            if (!Directory.Exists(flavorRoot))
-                throw new InvalidOperationException($"APK folder not found: {flavorRoot}. {hint}");
-            throw new InvalidOperationException(
-                $"No .apk found under flavor '{flavor}' (looked in {dir} and recursively under {flavorRoot}). {hint}");
-        }
-
-        return apk.FullName;
+        return list
+            .GroupBy(f => f.FullName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .ToList();
     }
 }

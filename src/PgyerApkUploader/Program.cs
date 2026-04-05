@@ -20,9 +20,9 @@ internal static class Program
             var opts = CliOptions.Parse(args);
             var exeDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            var projectRoot = ProjectLocator.ResolveProjectRoot(opts.ProjectRoot);
+            var projectRoot = ProjectLocator.ResolveWorkingRoot(opts.ProjectRoot);
             Directory.SetCurrentDirectory(projectRoot);
-            Console.WriteLine($"Project root: {projectRoot}");
+            Console.WriteLine($"Working directory: {projectRoot}");
 
             var apiKey = CredentialStore.ResolveApiKey(projectRoot, exeDir);
 
@@ -36,19 +36,25 @@ internal static class Program
             }
             else if (opts.Build)
             {
+                if (!ProjectLocator.HasGradleWrapper(projectRoot))
+                    throw new InvalidOperationException(
+                        "--build requires gradlew.bat in the working directory. cd into your Android project root, or pass --project PATH to that folder.");
+
                 var task = GradleTaskName.GetAssembleTask(opts.Flavor, opts.BuildType);
                 Console.WriteLine($"Running: .\\gradlew.bat {task}");
                 var exit = RunGradle(projectRoot, task);
                 if (exit != 0)
                     return exit;
-                apkPath = ApkResolver.ResolveNewestApk(projectRoot, opts.Flavor, opts.BuildType);
+                Console.WriteLine($"Scanning recursively for *.apk under {projectRoot} ...");
+                var apks = ApkResolver.EnumerateApksSortedNewestFirst(projectRoot);
+                apkPath = ApkPicker.SelectApk(projectRoot, apks, opts.Force);
                 Console.WriteLine($"Using APK: {apkPath}");
             }
             else
             {
-                Console.WriteLine(
-                    $"Scanning for newest APK (flavor={opts.Flavor}, buildType={opts.BuildType}) under app\\build\\outputs\\apk ...");
-                apkPath = ApkResolver.ResolveNewestApk(projectRoot, opts.Flavor, opts.BuildType);
+                Console.WriteLine($"Scanning recursively for *.apk under {projectRoot} ...");
+                var apks = ApkResolver.EnumerateApksSortedNewestFirst(projectRoot);
+                apkPath = ApkPicker.SelectApk(projectRoot, apks, opts.Force);
                 Console.WriteLine($"Using APK: {apkPath}");
             }
 
@@ -205,21 +211,24 @@ internal static class Program
                                [--build] [--apk PATH] [--update-description TEXT] [--force]
 
             Options:
-              --project, -p          Android project root (folder with gradlew.bat). Default: walk up from cwd.
-              --flavor, -f           Gradle flavor folder under app/build/outputs/apk (default: _365GPSCN).
-              --build-type           Release or Debug (default: Release).
-              --build                Run gradlew assemble before scanning for APK.
+              --project, -p          Folder to scan for APKs and config files. Default: walk up from cwd for gradlew, else cwd.
+              --flavor, -f           Gradle flavor for assemble task (default: _365GPSCN).
+              --build-type           Release or Debug for assemble task (default: Release).
+              --build                Run gradlew assemble, then scan for APKs.
               --apk                  Upload this file; skips scan and --build.
               --update-description   Pgyer buildUpdateDescription (overrides pgyer_config.json).
-              --force                Skip APK and remark confirmation (for CI).
+              --force                Skip APK/remark prompts; with multiple APKs, uploads newest (for CI).
 
             Environment:
               PGYER_API_KEY          API key (recommended).
-              APKUPLOAD_PROJECT_ROOT Optional default project root when not using --project.
+              APKUPLOAD_PROJECT_ROOT Optional default working folder when not using --project.
 
             Config files (same as legacy ApkUpload.ps1):
               pgyer_config.json      update_description, note, install_type, password
               pgyer-api-key.local    one line API key if PGYER_API_KEY is unset
+
+            APK scan: recursive *.apk under project root, sorted by modified time (newest first). If more
+            than one exists, you pick the index (unless --force, which takes the newest).
 
             Remark flow: the full remark is always shown; press Y to upload, E to edit, N to cancel
             (unless --force). This avoids skipping confirmation when update_description is set in JSON.
