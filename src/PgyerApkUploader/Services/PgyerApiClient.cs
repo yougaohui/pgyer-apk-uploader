@@ -14,57 +14,74 @@ public sealed class PgyerApiClient
         string buildUpdateDescription,
         string? buildInstallType,
         string? buildPassword,
+        IProgress<(long BytesRead, long TotalBytes)>? uploadProgress = null,
         CancellationToken cancellationToken = default)
     {
-        await using var fileStream = File.OpenRead(apkPath);
-        var fileName = Path.GetFileName(apkPath);
-
-        using var content = new MultipartFormDataContent();
-        content.Add(new StringContent(apiKey), "_api_key");
-        content.Add(new StreamContent(fileStream), "file", fileName);
-
-        if (!string.IsNullOrEmpty(buildUpdateDescription))
-            content.Add(new StringContent(buildUpdateDescription), "buildUpdateDescription");
-        if (!string.IsNullOrWhiteSpace(buildInstallType))
-            content.Add(new StringContent(buildInstallType), "buildInstallType");
-        if (!string.IsNullOrWhiteSpace(buildPassword))
-            content.Add(new StringContent(buildPassword), "buildPassword");
-
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        using var response = await http.PostAsync(UploadUrl, content, cancellationToken).ConfigureAwait(false);
-        var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"HTTP {(int)response.StatusCode}: {raw}");
-
-        PgyerApiEnvelope? json;
-        try
+        Stream streamForContent;
+        if (uploadProgress is null)
         {
-            json = JsonSerializer.Deserialize<PgyerApiEnvelope>(raw, JsonOptions);
+            streamForContent = File.OpenRead(apkPath);
         }
-        catch (JsonException)
+        else
         {
-            throw new InvalidOperationException($"Unexpected response (not JSON): {raw}");
+            var inner = File.OpenRead(apkPath);
+            streamForContent = new ProgressReadStream(inner, inner.Length, uploadProgress);
         }
 
-        if (json is null || json.Code is null)
-            throw new InvalidOperationException($"Unexpected JSON shape: {raw}");
-
-        if (json.Code.Value != 0)
+        using (streamForContent)
         {
-            var msg = json.Message ?? "";
-            throw new InvalidOperationException($"Pgyer API error code={json.Code} message={msg}\nRaw: {raw}");
+            if (uploadProgress is not null)
+                uploadProgress.Report((0, streamForContent.Length));
+
+            var fileName = Path.GetFileName(apkPath);
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(apiKey), "_api_key");
+            content.Add(new StreamContent(streamForContent), "file", fileName);
+
+            if (!string.IsNullOrEmpty(buildUpdateDescription))
+                content.Add(new StringContent(buildUpdateDescription), "buildUpdateDescription");
+            if (!string.IsNullOrWhiteSpace(buildInstallType))
+                content.Add(new StringContent(buildInstallType), "buildInstallType");
+            if (!string.IsNullOrWhiteSpace(buildPassword))
+                content.Add(new StringContent(buildPassword), "buildPassword");
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+            using var response = await http.PostAsync(UploadUrl, content, cancellationToken).ConfigureAwait(false);
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException($"HTTP {(int)response.StatusCode}: {raw}");
+
+            PgyerApiEnvelope? json;
+            try
+            {
+                json = JsonSerializer.Deserialize<PgyerApiEnvelope>(raw, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                throw new InvalidOperationException($"Unexpected response (not JSON): {raw}");
+            }
+
+            if (json is null || json.Code is null)
+                throw new InvalidOperationException($"Unexpected JSON shape: {raw}");
+
+            if (json.Code.Value != 0)
+            {
+                var msg = json.Message ?? "";
+                throw new InvalidOperationException($"Pgyer API error code={json.Code} message={msg}\nRaw: {raw}");
+            }
+
+            var shortcut = json.Data?.BuildShortcutUrl;
+            if (string.IsNullOrWhiteSpace(shortcut))
+                shortcut = json.BuildShortcutUrl;
+
+            var qr = json.Data?.BuildQRCodeURL ?? json.Data?.BuildQrCodeUrl;
+            if (string.IsNullOrWhiteSpace(qr))
+                qr = json.BuildQRCodeURL;
+
+            return new PgyerUploadResult(shortcut, qr, raw);
         }
-
-        var shortcut = json.Data?.BuildShortcutUrl;
-        if (string.IsNullOrWhiteSpace(shortcut))
-            shortcut = json.BuildShortcutUrl;
-
-        var qr = json.Data?.BuildQRCodeURL ?? json.Data?.BuildQrCodeUrl;
-        if (string.IsNullOrWhiteSpace(qr))
-            qr = json.BuildQRCodeURL;
-
-        return new PgyerUploadResult(shortcut, qr, raw);
     }
 }
 

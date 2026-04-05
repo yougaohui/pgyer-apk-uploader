@@ -89,14 +89,14 @@ internal static class Program
             if (!opts.Force)
                 remarkToSend = ConfirmFlow.ConfirmRemarkBeforeUpload(remarkToSend, remarkSourceLabel);
 
-            Console.WriteLine("Uploading to Pgyer...");
             var client = new PgyerApiClient();
             var result = await client.UploadAsync(
                 apkPath,
                 apiKey,
                 remarkToSend,
                 cfg?.InstallType,
-                cfg?.Password).ConfigureAwait(false);
+                cfg?.Password,
+                CreateUploadProgressReporter()).ConfigureAwait(false);
 
             Console.WriteLine();
             Console.WriteLine("Upload OK (code=0).");
@@ -171,6 +171,37 @@ internal static class Program
     {
         [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
         internal static extern int MessageBoxW(IntPtr hWnd, string? text, string? caption, uint type);
+    }
+
+    private static IProgress<(long BytesRead, long TotalBytes)> CreateUploadProgressReporter()
+    {
+        var gate = new object();
+        long lastPrintTicks = 0;
+        const int throttleMs = 150;
+
+        return new Progress<(long BytesRead, long TotalBytes)>(t =>
+        {
+            var total = t.TotalBytes;
+            var read = t.BytesRead;
+            var done = total > 0 && read >= total;
+            lock (gate)
+            {
+                var now = Environment.TickCount64;
+                if (!done && now - lastPrintTicks < throttleMs)
+                    return;
+                lastPrintTicks = now;
+
+                var pct = total > 0 ? 100.0 * read / total : 0;
+                var readMb = read / (1024.0 * 1024);
+                var totalMb = total / (1024.0 * 1024);
+                var line = $"Uploading to Pgyer... {pct:F1}% ({readMb:F1} / {totalMb:F1} MB)";
+
+                if (Console.IsOutputRedirected)
+                    Console.WriteLine(line);
+                else
+                    Console.Write($"\r{line}   ");
+            }
+        });
     }
 
     private static void WriteColoredLine(string message, ConsoleColor color)

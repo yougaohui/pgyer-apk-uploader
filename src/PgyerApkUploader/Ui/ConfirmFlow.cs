@@ -84,44 +84,10 @@ public static class ConfirmFlow
     }
 
     /// <summary>
-    /// Uses choice.exe on Windows when available (same idea as ApkUpload.ps1); falls back to Y/N keys.
+    /// Same-console Y/N. We do not use choice.exe: spawning it with a hidden window / redirected
+    /// streams often leaves no visible prompt in the parent console, so it looks "stuck" after the APK box.
     /// </summary>
-    private static bool ChoiceYesNo()
-    {
-        var choiceExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "choice.exe");
-        if (File.Exists(choiceExe))
-        {
-            try
-            {
-                // Keep prompt short; choice.exe /M breaks on embedded quotes — full context is printed above.
-                var psi = new System.Diagnostics.ProcessStartInfo(choiceExe, "/C YN /M \"Upload this APK? \"")
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                using var p = System.Diagnostics.Process.Start(psi);
-                if (p is null)
-                    return PromptYnFallback("Upload this APK?");
-                p.WaitForExit();
-                // choice: 1 = first option (Y), 2 = N, 0 = Ctrl+C
-                return p.ExitCode switch
-                {
-                    1 => true,
-                    2 => false,
-                    0 => false,
-                    _ => throw new InvalidOperationException($"Upload cancelled or choice failed (exit code {p.ExitCode}).")
-                };
-            }
-            catch
-            {
-                return PromptYnFallback("Upload this APK?");
-            }
-        }
-
-        return PromptYnFallback("Upload this APK?");
-    }
+    private static bool ChoiceYesNo() => PromptYnFallback("Upload this APK?");
 
     private static bool PromptYnFallback(string message)
     {
