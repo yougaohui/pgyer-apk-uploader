@@ -36,6 +36,18 @@ dotnet publish src/PgyerApkUploader/PgyerApkUploader.csproj -c Release -r win-x6
 
 Copy `publish/PgyerApkUploader.exe` to another machine (same Windows x64), add to PATH if desired. Place optional `pgyer_config.json` or `pgyer-api-key.local` next to the exe or use `%USERPROFILE%` / project root as documented in `--help`.
 
+### Short command `pgy` (Windows)
+
+`PGYER_API_KEY` only supplies the API key; it does **not** add a short name for the executable.
+
+If you used `Set-Alias` with a **relative** path (for example `.\publish\PgyerApkUploader.exe`), it only works in that folder. Use an **absolute** path, or use the shim below.
+
+1. Set a **user** environment variable **`PGYER_APK_UPLOADER_HOME`** to the folder that contains `PgyerApkUploader.exe` (for example the repo’s `publish` folder after `dotnet publish`, or wherever you copied the exe).
+2. Add this repo’s **`scripts`** folder to your user **PATH** (the folder that contains `pgy.cmd`).
+3. Open a **new** terminal. You can run **`pgy`** from any directory (for example `pgy --help`).
+
+**PowerShell** (optional): dot-source `scripts/Import-PgyShim.ps1` from your profile, or add a function that uses `$env:PGYER_APK_UPLOADER_HOME` and `@args` (not a relative-path alias).
+
 ## Configuration
 
 Same as `pgyer_config.json.example` in the main app repo: `update_description`, `note`, `install_type`, `password`. API key: `PGYER_API_KEY` or `pgyer-api-key.local` (one line).
