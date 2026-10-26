@@ -51,3 +51,16 @@ If you used `Set-Alias` with a **relative** path (for example `.\publish\PgyerAp
 ## Configuration
 
 Same as `pgyer_config.json.example` in the main app repo: `update_description`, `note`, `install_type`, `password`. API key: `PGYER_API_KEY` or `pgyer-api-key.local` (one line).
+
+## Installed location on this PC (ygh)
+
+Daily command `pgy` resolves to **`C:\soft\pgy\pgy.exe`** (on PATH). Repo `publish\pgy.exe` is only the build output.
+
+After code changes, publish and **overwrite the installed copy**:
+
+```powershell
+dotnet publish src/PgyerApkUploader/PgyerApkUploader.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish -p:AssemblyName=pgy
+Copy-Item -Force .\publish\pgy.exe C:\soft\pgy\pgy.exe
+```
+
+Or run `scripts\publish-and-install.ps1`.
