@@ -72,20 +72,69 @@ public sealed class PgyerApiClient
                 throw new InvalidOperationException($"Pgyer API error code={json.Code} message={msg}\nRaw: {raw}");
             }
 
+            var buildKey = json.Data?.BuildKey;
+            if (string.IsNullOrWhiteSpace(buildKey))
+                buildKey = json.BuildKey;
+
             var shortcut = json.Data?.BuildShortcutUrl;
             if (string.IsNullOrWhiteSpace(shortcut))
                 shortcut = json.BuildShortcutUrl;
 
-            var qr = json.Data?.BuildQRCodeURL ?? json.Data?.BuildQrCodeUrl;
+            var qr = json.Data?.BuildQRCodeURL;
             if (string.IsNullOrWhiteSpace(qr))
                 qr = json.BuildQRCodeURL;
 
-            return new PgyerUploadResult(shortcut, qr, raw);
+            return new PgyerUploadResult(shortcut, qr, raw, buildKey);
         }
     }
 }
 
-public sealed record PgyerUploadResult(string? ShortcutUrl, string? QrCodeUrl, string RawJson);
+public sealed record PgyerUploadResult(
+    string? ShortcutUrl,
+    string? QrCodeUrl,
+    string RawJson,
+    string? BuildKey = null)
+{
+    public string? ShareUrl
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(ShortcutUrl))
+            {
+                if (ShortcutUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    ShortcutUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ShortcutUrl;
+                }
+
+                return $"https://www.pgyer.com/{ShortcutUrl.TrimStart('/')}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(BuildKey))
+            {
+                if (BuildKey.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    BuildKey.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    return BuildKey;
+                }
+
+                return $"https://www.pgyer.com/{BuildKey.TrimStart('/')}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(QrCodeUrl) &&
+                Uri.TryCreate(QrCodeUrl, UriKind.Absolute, out var qrUri))
+            {
+                var segments = qrUri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length >= 2 && segments[^2].Equals("qrcode", StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"{qrUri.Scheme}://{qrUri.Authority}/{segments[^1]}";
+                }
+            }
+
+            return null;
+        }
+    }
+}
 
 internal sealed class PgyerApiEnvelope
 {
@@ -103,16 +152,19 @@ internal sealed class PgyerApiEnvelope
 
     [JsonPropertyName("buildQRCodeURL")]
     public string? BuildQRCodeURL { get; set; }
+
+    [JsonPropertyName("buildKey")]
+    public string? BuildKey { get; set; }
 }
 
 internal sealed class PgyerApiData
 {
+    [JsonPropertyName("buildKey")]
+    public string? BuildKey { get; set; }
+
     [JsonPropertyName("buildShortcutUrl")]
     public string? BuildShortcutUrl { get; set; }
 
     [JsonPropertyName("buildQRCodeURL")]
     public string? BuildQRCodeURL { get; set; }
-
-    [JsonPropertyName("buildQrCodeURL")]
-    public string? BuildQrCodeUrl { get; set; }
 }

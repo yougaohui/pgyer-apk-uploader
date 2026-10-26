@@ -100,11 +100,12 @@ internal static class Program
 
             Console.WriteLine();
             Console.WriteLine("Upload OK (code=0).");
-            if (!string.IsNullOrWhiteSpace(result.ShortcutUrl))
-                Console.WriteLine($"Shortcut URL: {result.ShortcutUrl}");
+            var shareUrl = result.ShareUrl;
+            if (!string.IsNullOrWhiteSpace(shareUrl))
+                Console.WriteLine($"Share URL:    {shareUrl}");
             if (!string.IsNullOrWhiteSpace(result.QrCodeUrl))
                 Console.WriteLine($"QR code URL:  {result.QrCodeUrl}");
-            if (string.IsNullOrWhiteSpace(result.ShortcutUrl) && string.IsNullOrWhiteSpace(result.QrCodeUrl))
+            if (string.IsNullOrWhiteSpace(shareUrl) && string.IsNullOrWhiteSpace(result.QrCodeUrl))
                 Console.WriteLine($"Response: {result.RawJson}");
 
             return 0;
